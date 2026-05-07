@@ -254,3 +254,73 @@ POST /api/collect-subscriptions
   "search_keywords": ["키워드1", "키워드2", "...", "키워드10"]
 }
 ```
+
+---
+
+## STEP 6: 새벽 배치 — 공통 영상 후보 풀 수집
+
+**목표:** 매일 새벽 2시(UTC 17:00) Vercel Cron으로 자동 실행. 20개 카테고리별 YouTube 영상·쇼츠를 수집해 `video_pool` 테이블에 저장한다.
+
+### 파일
+- `app/api/batch/collect-pool/route.js` — 단일 파일
+
+### 환경변수 추가
+```
+CRON_SECRET=YOUR_CRON_SECRET  # openssl rand -base64 32 로 생성
+```
+
+### 인증
+`Authorization: Bearer {CRON_SECRET}` 헤더 검증 → 실패 시 401
+
+### 처리 순서
+
+```
+1. CRON_SECRET 헤더 검증 → 401
+2. 20개 카테고리 순차 처리:
+   A. search.list (일반 영상): type=video, videoDuration=medium, order=viewCount, maxResults=15
+   B. search.list (쇼츠): type=video, videoDuration=short, order=viewCount, maxResults=25
+3. 수집된 video_id 목록으로 videos.list 조회 (50개씩 배치)
+   - part: snippet, statistics, contentDetails
+4. 쇼츠 판별 (아래 조건 중 2개 이상 → shorts):
+   - duration ≤ 180초
+   - 썸네일 세로형 (maxres/high 썸네일 height > width, 기본 비율 9:16)
+   - videoDuration=short로 검색된 결과
+5. video_pool upsert (unique: video_id + collected_date)
+6. { success: true, videoCount, shortsCount } 반환
+```
+
+### 카테고리 목록 (20개)
+
+```js
+const CATEGORIES = [
+  '요리/자취', 'IT/개발', '여행/국내', '운동/헬스', '뷰티/패션',
+  '게임', '음악', '영화/드라마', '독서/공부', '재테크',
+  '반려동물', '인테리어', '자동차', '스포츠', '코미디/예능',
+  '뉴스/시사', '육아', '캠핑/아웃도어', '패션/스타일', '과학/지식',
+]
+```
+
+### 쇼츠 판별 기준
+
+| 조건 | 기준 |
+|------|------|
+| duration | contentDetails.duration 파싱 → 180초 이하 |
+| 썸네일 비율 | maxres/high 썸네일의 height > width (9:16 세로형) |
+| 검색 출처 | videoDuration=short 검색 결과 |
+
+2개 이상 충족 시 `type: 'shorts'`, 아니면 `type: 'video'`
+
+### video_pool 저장 필드
+
+```
+video_id, type, title, channel_id, channel_name,
+thumbnail_url, duration_sec, view_count, like_count,
+comment_count, category, tags, published_at,
+collected_date, raw_score
+```
+
+### Vercel Cron
+```json
+{ "path": "/api/batch/collect-pool", "schedule": "0 17 * * *" }
+```
+UTC 17:00 = 한국시간 새벽 2:00
