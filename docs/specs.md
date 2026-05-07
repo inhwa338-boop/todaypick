@@ -410,3 +410,55 @@ UTC 17:00 = 한국시간 새벽 2:00
 { "path": "/api/batch/generate-recommendations", "schedule": "0 18 * * *" }
 ```
 UTC 18:00 = 한국시간 새벽 3:00
+
+---
+
+## STEP 8: 추천 조회 API
+
+**목표:** 유저가 `/today` 접속 시 오늘의 추천을 반환한다. 캐시(배치 선생성 데이터)가 있으면 즉시 반환, 없으면 실시간 생성 후 반환.
+
+### 파일
+- `app/api/recommendations/route.js`
+
+### 처리 순서
+
+```
+GET /api/recommendations
+
+1. getServerSession() → 미인증 401
+2. users.last_active_at = now() 업데이트
+3. 오늘 user_recommendations 조회 (recommended_date = today)
+
+[캐시 히트]
+4a. { cached: true, videos, shorts, generated_at } 반환
+
+[캐시 미스 - 신규 유저 / 배치 미처리]
+4b. 실시간 생성:
+    - video_pool 오늘 데이터 로드
+    - 구독 채널 Set + 최근 7일 추천된 영상 Set
+    - scoreVideo / scoreShorts 점수 계산
+    - 상위 추출: 영상 45개, 쇼츠 75개
+    - generateRecommendations() Gemini 호출
+    - user_recommendations INSERT (batch_index)
+    - { cached: false, videos, shorts, generated_at } 반환
+```
+
+### 응답 구조
+
+```json
+{
+  "cached": true,
+  "videos": [...],
+  "shorts": [...],
+  "generated_at": "2026-05-07T03:00:00Z"
+}
+```
+
+videos: type=video, batch_index 0~2 (총 30개)
+shorts: type=shorts, batch_index 0~4 (총 50개)
+
+### lib 재사용
+- `scoreVideo`, `scoreShorts` — lib/scoring.js
+- `generateRecommendations` — lib/gemini.js
+- `createAdminClient` — lib/supabase.js
+- `authOptions` — lib/auth.js
