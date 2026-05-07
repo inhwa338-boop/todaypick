@@ -748,3 +748,70 @@ pages: {
   signIn: '/',
 },
 ```
+
+---
+
+## PWA: 홈 화면 추가 지원
+
+**목표:** Android/iOS 홈 화면에 앱을 추가할 수 있도록 Web App Manifest + 최소 서비스 워커를 구현한다.
+
+### 파일
+| 파일 | 역할 |
+|------|------|
+| `app/manifest.js` | PWA 앱 메타데이터 (이름, 아이콘, 테마) |
+| `app/icon.js` | 512×512 앱 아이콘 PNG (Next.js ImageResponse) |
+| `app/apple-icon.js` | iOS 홈 화면용 180×180 아이콘 |
+| `public/sw.js` | 최소 서비스 워커 (PWA 설치 조건 충족) |
+| `app/providers.jsx` | 수정: 서비스 워커 등록 추가 |
+| `app/layout.js` | 수정: themeColor 메타 추가 |
+
+### 앱 메타데이터 (manifest.js)
+```js
+{
+  name: '오늘은 이거다',
+  short_name: '오이다',
+  description: '유명하지만 나만 몰랐던 유튜브, 오늘 발견하세요',
+  start_url: '/',
+  display: 'standalone',
+  background_color: '#08090a',
+  theme_color: '#08090a',
+  orientation: 'portrait-primary',
+  icons: [
+    { src: '/icon', sizes: '512x512', type: 'image/png', purpose: 'any' },
+    { src: '/apple-icon', sizes: '180x180', type: 'image/png', purpose: 'any' },
+  ],
+}
+```
+
+### 아이콘 디자인 (icon.js / apple-icon.js)
+- 배경: `#08090a` (Pitch Black), 모서리 둥글게 (borderRadius 20%)
+- 중앙: "오" 글자, `#e4f222` (Neon Lime), fontWeight 700
+- `app/icon.js`: 512×512
+- `app/apple-icon.js`: 180×180
+
+### 서비스 워커 (public/sw.js)
+PWA 설치 조건만 충족하는 최소 구현:
+- install: skipWaiting
+- activate: clients.claim
+- fetch: 모든 요청을 네트워크로 그대로 통과 (오프라인 미지원)
+
+### 서비스 워커 등록 (providers.jsx)
+기존 `SessionProvider` 래퍼에 아래 추가:
+```js
+useEffect(() => {
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').catch(console.error)
+  }
+}, [])
+```
+
+### layout.js 수정
+`metadata` 객체에 추가:
+```js
+themeColor: '#08090a',
+appleWebApp: {
+  capable: true,
+  statusBarStyle: 'black-translucent',
+  title: '오늘은 이거다',
+},
+```
