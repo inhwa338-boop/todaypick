@@ -706,3 +706,39 @@ GET /api/profile
 | `loading` | `true` | 초기 로딩 |
 | `saving` | `false` | 저장 중 상태 |
 | `saved` | `false` | 저장 완료 피드백 |
+
+---
+
+## STEP 12: 랜딩 페이지
+
+**목표:** 비로그인 유저가 서비스에 처음 진입할 때 보는 랜딩 페이지를 구현한다. Google 로그인으로 바로 진입하는 심플 센터 레이아웃.
+
+### 파일
+| 파일 | 역할 |
+|------|------|
+| `app/page.jsx` | 교체: 랜딩 페이지 Client Component |
+| `lib/auth.js` | 수정: `pages: { signIn: '/' }` 추가 |
+
+> `app/page.js` (기존 Next.js 기본 파일)는 삭제하고 `app/page.jsx`로 교체한다.
+
+### 디자인 (DESIGN.md Linear 다크 테마, 모바일 퍼스트)
+- 배경: `#08090a` (Pitch Black), 전체 화면 세로 중앙 정렬
+- 로고: "오늘은 이거다" `#e4f222` (Neon Lime), 24px weight 700
+- 문구: "유명하지만 나만 몰랐던 유튜브, 오늘 발견하세요" `#8a8f98` (Storm Cloud), 14px, 2줄
+- CTA 버튼: "Google로 시작하기" — `#e4f222` 배경 + `#08090a` 텍스트, 6px radius, weight 600
+- maxWidth: 480px, margin 0 auto
+
+### 동작
+- 버튼 클릭: `signIn('google', { callbackUrl: '/today' })`
+- 인증 완료 후 미들웨어가 자동 분기:
+  - `onboarding_completed = true` → `/today`
+  - `onboarding_completed = false` → `/onboarding`
+- 인증된 유저가 `/` 방문 → 미들웨어가 `/today`로 즉시 리다이렉트
+
+### lib/auth.js 수정
+`authOptions` 객체 마지막에 `pages` 속성 추가:
+```js
+pages: {
+  signIn: '/',
+},
+```
