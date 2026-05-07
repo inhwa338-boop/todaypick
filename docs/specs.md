@@ -677,8 +677,11 @@ GET /api/profile
 ### 취향 프로파일 카드 표시 규칙
 - `taste_profile`이 null이면 "아직 취향 분석이 완료되지 않았어요" 메시지 표시
 - `category_weights`: Object.entries → value 내림차순 정렬 → 상위 5개 표시
-- 막대 바 width: `value * 100 * 3.33`% (최대값 기준 비율, 단 최대 100%)
-  - 최댓값을 기준으로 normalize: `(value / maxValue) * 100`%
+- 막대 바 width: `(value / maxValue) * 100`% (최댓값 기준 normalize, 최대 100%)
+- 막대 바 진입 애니메이션: 데이터 로드 완료 후 width 0% → 목표값으로 채워지는 효과
+  - `animated` state (boolean, 초기 false), 데이터 로드 후 `setTimeout(() => setAnimated(true), 50)` 실행
+  - 막대 fill에 `transition: 'width 0.6s ease-out'` 적용
+  - `animated === false`이면 width 0%, true이면 목표 퍼센트
 - `search_keywords`: 배열 최대 10개 칩으로 표시
 
 ### 쇼츠 취향 카드
