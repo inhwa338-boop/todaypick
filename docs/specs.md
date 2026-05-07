@@ -462,3 +462,145 @@ shorts: type=shorts, batch_index 0~4 (총 50개)
 - `generateRecommendations` — lib/gemini.js
 - `createAdminClient` — lib/supabase.js
 - `authOptions` — lib/auth.js
+
+---
+
+## STEP 9: 온보딩 페이지
+
+**목표:** 신규 유저가 로그인 후 거치는 3단계 온보딩을 구현한다. 구독 채널 수집 → 쇼츠 취향 설문 → 완료.
+
+### 파일
+| 파일 | 역할 |
+|------|------|
+| `app/onboarding/page.jsx` | Client Component — 3단계 온보딩 |
+| `app/api/complete-onboarding/route.js` | PATCH: onboarding_completed=true + shorts_taste_profile 저장 |
+
+### 디자인 (DESIGN.md Linear 다크 테마)
+- 배경: `#08090a` (Pitch Black)
+- 카드: `#0f1011` (Graphite), 6px radius
+- 텍스트: `#f7f8f8` (Porcelain) 주요, `#8a8f98` (Storm Cloud) 보조
+- 선택된 태그/버튼: `#e4f222` (Neon Lime) 배경 + `#08090a` 텍스트
+- 미선택 태그: `#383b3f` (Gunmetal) 배경
+- Ghost 버튼: 투명 배경 + `#d0d6e0` (Light Steel) 텍스트
+- 폰트: Inter Variable
+
+### Step 1 — 구독 채널 수집 로딩
+- 전체 화면 중앙 정렬, Pitch Black 배경
+- 프로그레스 바 (Neon Lime, 애니메이션)
+- 메시지: "취향을 분석하고 있어요 ✨"
+- 마운트 즉시 `POST /api/collect-subscriptions` 호출
+- 완료 → Step 2 자동 전환
+
+### Step 2 — 쇼츠 취향 설문
+**질문1: "주로 보는 쇼츠 유형은?" (복수 선택)**
+```
+웃긴 영상/밈  요리/레시피  운동/헬스
+뷰티/패션     지식/정보    동물/힐링
+음악/댄스     게임         패션/스타일
+여행          재테크       스포츠
+```
+**질문2: "선호하는 분위기는?" (단일 선택)**
+- 웃기고 가벼운 것
+- 유익하고 배우는 것
+- 감성적이고 힐링되는 것
+
+**버튼:**
+- `[나중에 할게요]` — Ghost 버튼, 기본값으로 저장
+- `[완료!]` — Neon Lime 버튼
+
+→ 클릭 시 `PATCH /api/complete-onboarding` 호출 → Step 3
+
+### Step 3 — 완료
+- "준비됐어요! 오늘의 추천을 볼게요 🎬"
+- 3초 후 `router.push('/today')` 자동 이동
+
+### complete-onboarding API
+```
+PATCH /api/complete-onboarding
+body: { shorts_taste_profile: { categories: [...], vibe: "웃기고 가벼운 것" } }
+
+users.onboarding_completed = true
+users.shorts_taste_profile = body.shorts_taste_profile
+→ { success: true }
+```
+
+---
+
+## STEP 10: /today 메인 페이지
+
+**목표:** 로그인한 유저가 오늘의 추천 영상/쇼츠를 확인하는 메인 피드 페이지를 구현한다.
+
+### 파일
+| 파일 | 역할 |
+|------|------|
+| `app/today/page.jsx` | Client Component — 영상/쇼츠 추천 피드 |
+| `app/api/recommendations/route.js` | 수정: video_pool 메타데이터 병합 후 반환 |
+
+### 디자인 (DESIGN.md Linear 다크 테마, 모바일 퍼스트)
+- 배경: `#08090a` (Pitch Black)
+- 카드 배경: `#0f1011` (Graphite), 6px radius
+- 텍스트: `#f7f8f8` (Porcelain) 주요, `#8a8f98` (Storm Cloud) 보조
+- hook_message: `#e4f222` (Neon Lime)
+- vibe_tag 뱃지: `#23252a` 배경 + Storm Cloud 텍스트, 2px radius
+- 탭 활성: Neon Lime 텍스트 + 하단 border
+- 스켈레톤: `#161718` → `#23252a` shimmer 애니메이션
+
+### 페이지 구조
+
+```
+┌────────────────────────┐
+│ 오늘은 이거다      [👤] │  ← 헤더 (sticky): 로고(Neon Lime) + 아바타 이니셜
+├────────────────────────┤
+│  [영상]      [쇼츠]    │  ← 탭 바 (sticky)
+├────────────────────────┤
+│  [썸네일 풀 너비]      │
+│  제목                  │  ← 카드 (풀 너비)
+│  채널 · 조회수         │
+│  💡 hook_message       │
+│  [#vibe_tag]           │
+├────────────────────────┤
+│  ... 카드 반복 ...     │
+├────────────────────────┤
+│  [더 보기 (N개 남음)]  │  ← 배치 단위(10개)로 추가 표시
+└────────────────────────┘
+```
+
+### 상태 관리 (useState)
+| 상태 | 초기값 | 설명 |
+|------|--------|------|
+| `videos` | `[]` | 영상 추천 목록 |
+| `shorts` | `[]` | 쇼츠 추천 목록 |
+| `loading` | `true` | 초기 로딩 |
+| `error` | `null` | 오류 메시지 |
+| `activeTab` | `'video'` | 현재 탭 |
+| `videoPage` | `1` | 표시 중인 영상 배치 수 |
+| `shortsPage` | `1` | 표시 중인 쇼츠 배치 수 |
+
+### 카드 표시 로직
+- `videoPage=1` → `videos.slice(0, 10)` 표시
+- "더 보기" 클릭 → `videoPage++` → `videos.slice(0, 20)` 표시
+- 전체 표시 시 "더 보기" 숨김
+- 쇼츠 탭도 동일 (`shortsPage`)
+
+### 카드 클릭
+- `<a href="https://www.youtube.com/watch?v={video_id}" target="_blank" rel="noopener noreferrer">`
+- 모바일 브라우저에서 YouTube 앱 또는 새 탭으로 이동
+
+### 스켈레톤 로딩
+- `loading=true` 시 3개 스켈레톤 카드 표시
+- shimmer 애니메이션: `#161718` → `#23252a` 좌우 스윕
+
+### API 수정: /api/recommendations route.js
+캐시 히트·미스 양쪽 경로 모두, 최종 반환 직전에:
+```
+1. 반환할 video_id 목록 수집
+2. video_pool에서 해당 video_id 배치 조회
+   (video_id, title, channel_name, thumbnail_url, duration_sec, view_count)
+3. video_id를 키로 Map 생성
+4. 추천 행에 merge: { ...rec, title, channel_name, thumbnail_url, duration_sec, view_count }
+5. 병합된 배열 반환
+```
+
+### 빈 상태
+- 추천 없음(video_pool 미수집 등): "아직 오늘의 추천이 준비 중이에요 🌙" 메시지 표시
+- 오류: "추천을 불러오지 못했어요. 잠시 후 다시 시도해주세요." + 재시도 버튼
