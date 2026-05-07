@@ -729,6 +729,9 @@ GET /api/profile
   - 전체 문자열 다 표시되면 interval 정리 (`clearInterval`)
   - 타이핑 커서: 텍스트 끝에 `|` 깜빡임 효과 (`opacity` 0↔1, 500ms 주기), 타이핑 완료 후 사라짐
 - CTA 버튼: "Google로 시작하기" — `#e4f222` 배경 + `#08090a` 텍스트, 6px radius, weight 600
+  - 버튼 좌측에 Google "G" 컬러 SVG 아이콘 인라인 삽입 (배경 없음, 20×20px)
+  - 아이콘 + 텍스트 가로 정렬 (gap 8px), 버튼 전체 너비 기준 center 정렬
+  - SVG 색상: Blue `#4285F4`, Red `#EA4335`, Yellow `#FBBC05`, Green `#34A853`
 - maxWidth: 480px, margin 0 auto
 
 ### 동작
