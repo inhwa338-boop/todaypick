@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
 
 function formatViews(n) {
@@ -79,12 +79,14 @@ function VideoCard({ item, isPlaying, onPlay, onClose }) {
             }}
             src={`https://www.youtube.com/embed/${item.video_id}?autoplay=1`}
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            sandbox="allow-scripts allow-same-origin allow-presentation allow-fullscreen"
             allowFullScreen
           />
         </div>
       ) : (
         <button
           onClick={onPlay}
+          aria-label={`${item.title || item.video_id} 재생`}
           style={{
             display: 'block',
             width: '100%',
@@ -102,7 +104,7 @@ function VideoCard({ item, isPlaying, onPlay, onClose }) {
               overflow: 'hidden',
             }}
           >
-            {item.thumbnail_url && (
+            {item.thumbnail_url?.startsWith('https://') && (
               <img
                 src={item.thumbnail_url}
                 alt={item.title || ''}
@@ -248,7 +250,7 @@ export default function TodayPage() {
   const [shortsPage, setShortsPage] = useState(1)
   const [playingId, setPlayingId] = useState(null)
 
-  function loadData() {
+  const loadData = useCallback(() => {
     setLoading(true)
     setError(null)
     fetch('/api/recommendations')
@@ -259,15 +261,16 @@ export default function TodayPage() {
         setShorts(data.shorts || [])
         setLoading(false)
       })
-      .catch(() => {
+      .catch((err) => {
+        console.error('Failed to load recommendations:', err)
         setError('추천을 불러오지 못했어요. 잠시 후 다시 시도해주세요.')
         setLoading(false)
       })
-  }
+  }, [])
 
   useEffect(() => {
     loadData()
-  }, [])
+  }, [loadData])
 
   function handleTabChange(tab) {
     setActiveTab(tab)
@@ -322,6 +325,7 @@ export default function TodayPage() {
           오늘은 이거다
         </span>
         <div
+          aria-label={session?.user?.name || '사용자'}
           style={{
             width: 28,
             height: 28,
@@ -342,6 +346,7 @@ export default function TodayPage() {
 
       {/* 탭 바 */}
       <div
+        role="tablist"
         style={{
           position: 'sticky',
           top: '53px',
@@ -354,6 +359,8 @@ export default function TodayPage() {
         {['video', 'shorts'].map((tab) => (
           <button
             key={tab}
+            role="tab"
+            aria-selected={activeTab === tab}
             onClick={() => handleTabChange(tab)}
             style={{
               flex: 1,
