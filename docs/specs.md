@@ -725,6 +725,9 @@ GET /api/profile
 - 배경: `#08090a` (Pitch Black), 전체 화면 세로 중앙 정렬
 - 로고: "오늘은 이거다" `#e4f222` (Neon Lime), 24px weight 700
 - 문구: "유명하지만 나만 몰랐던 유튜브, 오늘 발견하세요" `#8a8f98` (Storm Cloud), 14px, 2줄
+  - 진입 시 타이핑 효과 (1회): `useState('')`로 표시 텍스트 관리, `useEffect`에서 `setInterval(50ms)`로 한 글자씩 추가
+  - 전체 문자열 다 표시되면 interval 정리 (`clearInterval`)
+  - 타이핑 커서: 텍스트 끝에 `|` 깜빡임 효과 (`opacity` 0↔1, 500ms 주기), 타이핑 완료 후 사라짐
 - CTA 버튼: "Google로 시작하기" — `#e4f222` 배경 + `#08090a` 텍스트, 6px radius, weight 600
 - maxWidth: 480px, margin 0 auto
 
