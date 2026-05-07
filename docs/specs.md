@@ -610,3 +610,96 @@ users.shorts_taste_profile = body.shorts_taste_profile
 ### 빈 상태
 - 추천 없음(video_pool 미수집 등): "아직 오늘의 추천이 준비 중이에요 🌙" 메시지 표시
 - 오류: "추천을 불러오지 못했어요. 잠시 후 다시 시도해주세요." + 재시도 버튼
+
+---
+
+## STEP 11: /profile 설정 페이지
+
+**목표:** 로그인한 유저가 AI가 분석한 취향 프로파일을 확인하고, 쇼츠 취향을 수정하고, 로그아웃할 수 있는 설정 페이지를 구현한다.
+
+### 파일
+| 파일 | 역할 |
+|------|------|
+| `app/api/profile/route.js` | GET: taste_profile + shorts_taste_profile 반환 |
+| `app/profile/page.jsx` | Client Component — 전체 프로필 UI |
+| `app/today/page.jsx` | 수정: 아바타 div → Next.js Link로 /profile 연결 |
+
+### 디자인 (DESIGN.md Linear 다크 테마, 모바일 퍼스트)
+- 배경: `#08090a` (Pitch Black)
+- 카드: `#0f1011` (Graphite), 6px radius
+- 섹션 제목: `#f7f8f8` (Porcelain) 15px weight 600
+- 설명 문구: `#8a8f98` (Storm Cloud) 12px
+- 막대 바 fill: `#e4f222` (Neon Lime)
+- 키워드 칩: `#23252a` 배경 + `#8a8f98` 텍스트, 2px radius
+- 저장 버튼: `#e4f222` 배경 + `#08090a` 텍스트
+- 로그아웃 버튼: `#23252a` 배경 + `#eb5757` (Warning Red) 텍스트
+
+### 페이지 구조
+
+```
+[← 뒤로]                          ← 상단 헤더 (sticky), 클릭 시 router.back()
+─────────────────────────────────
+[취향 프로파일 카드]
+  내 취향 카테고리                  ← 섹션 제목
+  구독 채널을 분석해 AI가            ← 설명 문구 (Storm Cloud)
+  파악한 취향이에요
+  ---
+  IT/개발  ████░░░  30%            ← category_weights 내림차순 상위 5개
+  요리/자취 ███░░░░  20%
+  재테크   ██░░░░░  15%
+  운동/헬스 █░░░░░░  10%
+  음악     █░░░░░░   8%
+  ---
+  키워드                           ← 섹션 소제목
+  [파이썬] [자취요리] [주식투자]...  ← search_keywords 칩 (최대 10개)
+
+[쇼츠 취향 카드]
+  쇼츠 취향 설정                   ← 섹션 제목
+  주로 보는 쇼츠 유형?             ← 온보딩 Step2와 동일한 12개 카테고리 칩
+  선호 분위기?                     ← 3개 라디오 버튼
+  [저장]                           ← Neon Lime CTA 버튼
+
+[계정 관리 카드]
+  [로그아웃]                       ← Warning Red 텍스트 버튼
+```
+
+### API: GET /api/profile
+
+```
+GET /api/profile
+→ 인증 없음: 401
+→ 성공: {
+    taste_profile: { category_weights, primary_interests, content_style, search_keywords, ... },
+    shorts_taste_profile: { categories: [...], vibe: "..." }
+  }
+```
+
+### 취향 프로파일 카드 표시 규칙
+- `taste_profile`이 null이면 "아직 취향 분석이 완료되지 않았어요" 메시지 표시
+- `category_weights`: Object.entries → value 내림차순 정렬 → 상위 5개 표시
+- 막대 바 width: `value * 100 * 3.33`% (최대값 기준 비율, 단 최대 100%)
+  - 최댓값을 기준으로 normalize: `(value / maxValue) * 100`%
+- `search_keywords`: 배열 최대 10개 칩으로 표시
+
+### 쇼츠 취향 카드
+- 온보딩 Step 2와 동일한 12개 카테고리 + 3개 분위기
+- 초기값: 로드된 `shorts_taste_profile.categories`, `shorts_taste_profile.vibe`
+- 저장 클릭: `PATCH /api/complete-onboarding` 재사용
+  ```
+  body: { shorts_taste_profile: { categories, vibe } }
+  ```
+- 저장 성공 시 버튼 텍스트 "저장됨 ✓"로 1.5초 표시 후 복원
+
+### 네비게이션
+- 헤더 "← 뒤로": `router.back()` 호출
+- app/today/page.jsx 아바타: `<Link href="/profile">` 로 래핑
+
+### 상태 관리 (useState)
+| 상태 | 초기값 | 설명 |
+|------|--------|------|
+| `tasteProfile` | `null` | taste_profile 데이터 |
+| `shortsCategories` | `[]` | 선택된 쇼츠 카테고리 |
+| `shortsVibe` | `''` | 선택된 분위기 |
+| `loading` | `true` | 초기 로딩 |
+| `saving` | `false` | 저장 중 상태 |
+| `saved` | `false` | 저장 완료 피드백 |
