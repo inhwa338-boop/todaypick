@@ -28,6 +28,8 @@ export default function ProfilePage() {
   const [animated, setAnimated] = useState(false)
 
   useEffect(() => {
+    setAnimated(false)
+    let timerId
     fetch('/api/profile')
       .then((r) => r.json())
       .then((data) => {
@@ -35,12 +37,13 @@ export default function ProfilePage() {
         setShortsCategories(data.shorts_taste_profile?.categories || [])
         setShortsVibe(data.shorts_taste_profile?.vibe || '')
         setLoading(false)
-        setTimeout(() => setAnimated(true), 50)
+        timerId = setTimeout(() => setAnimated(true), 50)
       })
       .catch((err) => {
         console.error('Failed to load profile:', err)
         setLoading(false)
       })
+    return () => clearTimeout(timerId)
   }, [])
 
   function toggleCategory(cat) {
@@ -52,13 +55,14 @@ export default function ProfilePage() {
   async function handleSave() {
     setSaving(true)
     try {
-      await fetch('/api/complete-onboarding', {
+      const res = await fetch('/api/complete-onboarding', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           shorts_taste_profile: { categories: shortsCategories, vibe: shortsVibe },
         }),
       })
+      if (!res.ok) throw new Error(`Save failed: ${res.status}`)
       setSaved(true)
       setTimeout(() => setSaved(false), 1500)
     } catch (err) {
@@ -126,7 +130,6 @@ export default function ProfilePage() {
       >
         <button
           onClick={() => router.back()}
-          aria-label="뒤로 가기"
           style={{
             background: 'none',
             border: 'none',
@@ -154,7 +157,7 @@ export default function ProfilePage() {
       </header>
 
       {loading ? (
-        <div style={{ padding: '48px 16px', textAlign: 'center' }}>
+        <div role="main" style={{ padding: '48px 16px', textAlign: 'center' }}>
           <p style={{ fontSize: '14px', color: '#8a8f98', letterSpacing: '-0.13px' }}>
             불러오는 중...
           </p>
@@ -196,7 +199,7 @@ export default function ProfilePage() {
                 >
                   {categoryEntries.map(([label, value]) => {
                     const barPct = (value / maxWeight) * 100
-                    const displayPct = Math.round(value * 100)
+                    const displayPct = Math.min(Math.round(value * 100), 100)
                     return (
                       <div
                         key={label}
@@ -308,6 +311,7 @@ export default function ProfilePage() {
                 return (
                   <button
                     key={cat}
+                    aria-pressed={selected}
                     onClick={() => toggleCategory(cat)}
                     style={{
                       padding: '6px 12px',
@@ -345,6 +349,7 @@ export default function ProfilePage() {
                 return (
                   <button
                     key={vibe}
+                    aria-pressed={selected}
                     onClick={() => setShortsVibe(vibe)}
                     style={{
                       padding: '10px 16px',
