@@ -4,6 +4,19 @@ import { createAdminClient } from '../../../lib/supabase'
 import { scoreVideo, scoreShorts } from '../../../lib/scoring'
 import { generateRecommendations } from '../../../lib/gemini'
 
+async function enrichWithMetadata(recs, supabaseAdmin) {
+  if (!recs || !recs.length) return recs || []
+  const today = new Date().toISOString().split('T')[0]
+  const ids = recs.map((r) => r.video_id)
+  const { data: pool } = await supabaseAdmin
+    .from('video_pool')
+    .select('video_id, title, channel_name, thumbnail_url, duration_sec, view_count')
+    .in('video_id', ids)
+    .eq('collected_date', today)
+  const meta = Object.fromEntries((pool || []).map((v) => [v.video_id, v]))
+  return recs.map((r) => ({ ...r, ...meta[r.video_id] }))
+}
+
 export async function GET() {
   // 1. 세션 인증
   const session = await getServerSession(authOptions)
@@ -32,10 +45,11 @@ export async function GET() {
 
   // 4a. 캐시 히트 → 즉시 반환
   if (cachedRecs?.length > 0) {
+    const enriched = await enrichWithMetadata(cachedRecs, supabaseAdmin)
     return Response.json({
       cached: true,
-      videos: cachedRecs.filter((r) => r.type === 'video'),
-      shorts: cachedRecs.filter((r) => r.type === 'shorts'),
+      videos: enriched.filter((r) => r.type === 'video'),
+      shorts: enriched.filter((r) => r.type === 'shorts'),
       generated_at: cachedRecs[0].created_at,
     })
   }
@@ -160,10 +174,11 @@ export async function GET() {
     return Response.json({ error: 'Failed to generate recommendations' }, { status: 500 })
   }
 
+  const enriched = await enrichWithMetadata(rows, supabaseAdmin)
   return Response.json({
     cached: false,
-    videos: rows.filter((r) => r.type === 'video'),
-    shorts: rows.filter((r) => r.type === 'shorts'),
+    videos: enriched.filter((r) => r.type === 'video'),
+    shorts: enriched.filter((r) => r.type === 'shorts'),
     generated_at: generatedAt,
   })
 }
