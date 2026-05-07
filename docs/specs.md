@@ -324,3 +324,89 @@ collected_date, raw_score
 { "path": "/api/batch/collect-pool", "schedule": "0 17 * * *" }
 ```
 UTC 17:00 = 한국시간 새벽 2:00
+
+---
+
+## STEP 7: 새벽 배치 — 개인화 추천 선생성
+
+**목표:** 매일 새벽 3시(UTC 18:00) 활성 유저(최근 7일, 최대 240명)별 개인화 추천을 Gemini API로 생성해 `user_recommendations` 테이블에 저장한다.
+
+### 파일
+| 파일 | 역할 |
+|------|------|
+| `lib/scoring.js` | `scoreVideo(video, tasteProfile)`, `scoreShorts(video, tasteProfile)` |
+| `app/api/batch/generate-recommendations/route.js` | 유저 루프·필터·점수·Gemini·DB 저장 |
+
+### route.js 처리 순서
+
+```
+1. CRON_SECRET 검증 → 401
+2. 활성 유저 조회: last_active_at 최근 7일, 최대 240명
+3. 오늘 video_pool 전체 로드 (collected_date = today)
+4. 유저별 순차 처리:
+   a. taste_profile 로드
+   b. user_subscriptions channel_id Set 조회
+   c. 최근 7일 user_recommendations video_id Set 조회
+   d. video_pool 필터: 미구독 채널 + 미추천 영상
+   e. scoreVideo/scoreShorts로 개인 점수 계산
+   f. 상위 추출: 영상 45개, 쇼츠 75개
+   g. Gemini 1회 호출 → 영상 30개, 쇼츠 50개 + 문구 생성
+   h. user_recommendations INSERT (batch_index)
+5. { success: true, usersProcessed: N } 반환
+```
+
+### lib/scoring.js 점수 기준
+
+**일반 영상 (100점)**
+| 항목 | 배점 | 계산 기준 |
+|------|------|-----------|
+| 취향 일치도 | 25 | taste_profile.category_weights[category] × 25 |
+| 조회수 | 15 | min(view_count / 1_000_000, 1) × 15 |
+| 바이럴 속도 | 15 | min(view_count / max(days_since_published, 1) / 100_000, 1) × 15 |
+| 댓글율 | 15 | min(comment_count / max(view_count, 1) / 0.005, 1) × 15 |
+| 좋아요율 | 10 | min(like_count / max(view_count, 1) / 0.05, 1) × 10 |
+| 신선도 | 10 | 7일+10, 30일+7, 90일+3, 그외 0 |
+| 키워드 일치 | 10 | (title+tags ∩ search_keywords 수 / 3) × 10, max 10 |
+
+**쇼츠 (100점)**
+| 항목 | 배점 | 계산 기준 |
+|------|------|-----------|
+| 조회수 | 20 | min(view_count / 5_000_000, 1) × 20 |
+| 바이럴 속도 | 20 | min(view_count / max(days_since_published, 1) / 500_000, 1) × 20 |
+| 취향 일치도 | 15 | category_weights[category] × 15 |
+| 댓글율 | 15 | min(comment_count / max(view_count, 1) / 0.001, 1) × 15 |
+| 좋아요율 | 10 | min(like_count / max(view_count, 1) / 0.02, 1) × 10 |
+| 신선도 | 10 | 7일+10, 30일+7, 90일+3, 그외 0 |
+| 분위기 일치 | 10 | shorts_taste_profile 카테고리 포함 시 10, 아니면 0 |
+
+### batch_index 구조
+- 영상 30개: 10개씩 → batch_index 0, 1, 2
+- 쇼츠 50개: 10개씩 → batch_index 0, 1, 2, 3, 4
+
+### Gemini 프롬프트 구조
+
+```
+너는 유튜브 콘텐츠 큐레이터야.
+유저의 취향과 후보 영상 목록을 분석해서
+일반 영상 30개, 쇼츠 50개를 최종 선별하고 각각 추천 문구를 작성해줘.
+
+[유저 취향]
+주요 관심사: {primary_interests}
+콘텐츠 스타일: {content_style}
+대표 구독 채널: {top_subscriptions}
+
+[후보 영상 목록]
+{candidates_json}
+
+[응답 형식 - JSON만]
+{
+  "videos": [{ "video_id", "recommendation_reason", "hook_message", "vibe_tag" }],
+  "shorts": [{ "video_id", "recommendation_reason", "hook_message", "vibe_tag" }]
+}
+```
+
+### Vercel Cron
+```json
+{ "path": "/api/batch/generate-recommendations", "schedule": "0 18 * * *" }
+```
+UTC 18:00 = 한국시간 새벽 3:00
