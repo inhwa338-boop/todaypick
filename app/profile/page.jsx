@@ -139,7 +139,7 @@ export default function ProfilePage() {
             lineHeight: 1,
           }}
         >
-          ←
+          ← 뒤로
         </button>
         <span
           style={{
@@ -355,7 +355,7 @@ export default function ProfilePage() {
                       cursor: 'pointer',
                       backgroundColor: selected
                         ? 'rgba(228,242,34,0.08)'
-                        : 'transparent',
+                        : '#23252a',
                       color: selected ? '#e4f222' : '#f7f8f8',
                       textAlign: 'left',
                       letterSpacing: '-0.13px',
