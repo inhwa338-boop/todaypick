@@ -18,3 +18,9 @@ body {
     text-wrap: balance;
   }
 }
+
+@keyframes shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
