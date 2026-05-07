@@ -575,6 +575,7 @@ users.shorts_taste_profile = body.shorts_taste_profile
 | `activeTab` | `'video'` | 현재 탭 |
 | `videoPage` | `1` | 표시 중인 영상 배치 수 |
 | `shortsPage` | `1` | 표시 중인 쇼츠 배치 수 |
+| `playingId` | `null` | 현재 인라인 재생 중인 video_id |
 
 ### 카드 표시 로직
 - `videoPage=1` → `videos.slice(0, 10)` 표시
@@ -582,9 +583,14 @@ users.shorts_taste_profile = body.shorts_taste_profile
 - 전체 표시 시 "더 보기" 숨김
 - 쇼츠 탭도 동일 (`shortsPage`)
 
-### 카드 클릭
-- `<a href="https://www.youtube.com/watch?v={video_id}" target="_blank" rel="noopener noreferrer">`
-- 모바일 브라우저에서 YouTube 앱 또는 새 탭으로 이동
+### 카드 클릭 — 인라인 확장 재생
+- 카드 클릭 시 `playingId = video_id` 설정
+- 해당 카드의 썸네일 영역이 YouTube iframe 플레이어로 교체됨
+- iframe src: `https://www.youtube.com/embed/{video_id}?autoplay=1`
+- 카드 테두리 Neon Lime(`#e4f222`)으로 강조
+- 카드 하단에 "닫기" 버튼 → `playingId = null`으로 복원
+- 다른 카드를 클릭하면 기존 플레이어 닫히고 새 카드 재생
+- 탭 전환 시 `playingId = null` 초기화
 
 ### 스켈레톤 로딩
 - `loading=true` 시 3개 스켈레톤 카드 표시
