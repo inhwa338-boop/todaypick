@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
+import Link from 'next/link'
 
 function formatViews(n) {
   if (!n) return ''
@@ -324,24 +325,26 @@ export default function TodayPage() {
         >
           오늘은 이거다
         </span>
-        <div
-          aria-label={session?.user?.name || '사용자'}
-          style={{
-            width: 28,
-            height: 28,
-            borderRadius: '50%',
-            backgroundColor: '#23252a',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: '12px',
-            fontWeight: 600,
-            color: '#8a8f98',
-            flexShrink: 0,
-          }}
-        >
-          {initial}
-        </div>
+        <Link href="/profile" style={{ textDecoration: 'none' }}>
+          <div
+            aria-label={session?.user?.name || '사용자'}
+            style={{
+              width: 28,
+              height: 28,
+              borderRadius: '50%',
+              backgroundColor: '#23252a',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '12px',
+              fontWeight: 600,
+              color: '#8a8f98',
+              flexShrink: 0,
+            }}
+          >
+            {initial}
+          </div>
+        </Link>
       </header>
 
       {/* 탭 바 */}
