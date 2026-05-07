@@ -1,0 +1,6 @@
+{
+  "crons": [
+    { "path": "/api/batch/collect-pool", "schedule": "0 17 * * *" },
+    { "path": "/api/batch/generate-recommendations", "schedule": "0 18 * * *" }
+  ]
+}
