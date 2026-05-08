@@ -1,6 +1,7 @@
 import { createAdminClient } from '../../../../lib/supabase'
 import { scoreVideo, scoreShorts } from '../../../../lib/scoring'
 import { generateRecommendations } from '../../../../lib/gemini'
+import { passesPoolQualityFilter, applyDiversityQuotaToPool } from '../../../../lib/recommendation-engine'
 
 const MAX_USERS = 240
 
@@ -62,12 +63,12 @@ export async function GET(request) {
         .gte('created_at', sevenDaysAgo)
       const recommendedVideos = new Set((recentRecs || []).map((r) => r.video_id))
 
-      // c. 필터: 미구독 채널 + 미추천 영상
+      // c. 필터: 미구독 채널 + 미추천 영상 + 품질 필터
       const filteredVideos = videoPool.filter(
-        (v) => !subscribedChannels.has(v.channel_id) && !recommendedVideos.has(v.video_id)
+        (v) => !subscribedChannels.has(v.channel_id) && !recommendedVideos.has(v.video_id) && passesPoolQualityFilter(v)
       )
       const filteredShorts = shortsPool.filter(
-        (v) => !subscribedChannels.has(v.channel_id) && !recommendedVideos.has(v.video_id)
+        (v) => !subscribedChannels.has(v.channel_id) && !recommendedVideos.has(v.video_id) && passesPoolQualityFilter(v)
       )
 
       if (filteredVideos.length === 0 && filteredShorts.length === 0) continue
@@ -81,9 +82,9 @@ export async function GET(request) {
         .map((v) => ({ ...v, personal_score: scoreShorts(v, taste_profile, shorts_taste_profile) }))
         .sort((a, b) => b.personal_score - a.personal_score)
 
-      // e. 상위 추출: 영상 45개, 쇼츠 75개
-      const topVideos = scoredVideos.slice(0, 45)
-      const topShorts = scoredShorts.slice(0, 75)
+      // e. 다양성 쿼터 적용 후 후보 추출
+      const topVideos = applyDiversityQuotaToPool(scoredVideos, 45, taste_profile)
+      const topShorts = applyDiversityQuotaToPool(scoredShorts, 75, shorts_taste_profile || taste_profile)
 
       // f. Gemini 1회 호출
       const { data: subDetails } = await supabaseAdmin

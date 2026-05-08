@@ -3,6 +3,7 @@ import { authOptions } from '../../../lib/auth'
 import { createAdminClient } from '../../../lib/supabase'
 import { scoreVideo, scoreShorts } from '../../../lib/scoring'
 import { generateRecommendations } from '../../../lib/gemini'
+import { passesPoolQualityFilter, applyDiversityQuotaToPool } from '../../../lib/recommendation-engine'
 
 async function enrichWithMetadata(recs, supabaseAdmin) {
   if (!recs || !recs.length) return recs || []
@@ -96,12 +97,12 @@ export async function GET() {
     .gte('created_at', sevenDaysAgo)
   const recommendedVideos = new Set((recentRecs || []).map((r) => r.video_id))
 
-  // 필터: 미구독 채널 + 미추천 영상
+  // 필터: 미구독 채널 + 미추천 영상 + 품질 필터
   const filteredVideos = videoPool.filter(
-    (v) => !subscribedChannels.has(v.channel_id) && !recommendedVideos.has(v.video_id)
+    (v) => !subscribedChannels.has(v.channel_id) && !recommendedVideos.has(v.video_id) && passesPoolQualityFilter(v)
   )
   const filteredShorts = shortsPool.filter(
-    (v) => !subscribedChannels.has(v.channel_id) && !recommendedVideos.has(v.video_id)
+    (v) => !subscribedChannels.has(v.channel_id) && !recommendedVideos.has(v.video_id) && passesPoolQualityFilter(v)
   )
 
   // 점수 계산 + 정렬
@@ -113,8 +114,9 @@ export async function GET() {
     .map((v) => ({ ...v, personal_score: scoreShorts(v, taste_profile, shorts_taste_profile) }))
     .sort((a, b) => b.personal_score - a.personal_score)
 
-  const topVideos = scoredVideos.slice(0, 45)
-  const topShorts = scoredShorts.slice(0, 75)
+  // 다양성 쿼터 적용 후 후보 추출
+  const topVideos = applyDiversityQuotaToPool(scoredVideos, 45, taste_profile)
+  const topShorts = applyDiversityQuotaToPool(scoredShorts, 75, shorts_taste_profile || taste_profile)
 
   // 대표 구독 채널 (Gemini 프롬프트용)
   const { data: subDetails } = await supabaseAdmin
